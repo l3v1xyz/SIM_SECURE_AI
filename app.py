@@ -6,157 +6,240 @@ from datetime import datetime
 import uuid
 from streamlit_geolocation import streamlit_geolocation
 
-# --- 1. SYSTEM CONFIGURATION ---
+# --- 1. SYSTEM CONFIGURATION & CSS OVERHAUL ---
 st.set_page_config(page_title="SIM-SECURE AI", layout="wide", page_icon="🌐")
 
-# --- 2. CLOUD DATABASE (Persistent Memory) ---
-# This allows you and your friend to see the same data if hosted on Streamlit Cloud
-if 'live_transactions' not in st.session_state:
-    st.session_state.live_transactions = []
+# Inject Custom CSS for a premium UI
+st.markdown("""
+    <style>
+    .main {background-color: #0e1117;}
+    .stButton>button {
+        border-radius: 8px;
+        transition: 0.3s;
+        border: 1px solid #4CAF50;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+    }
+    .alert-card {
+        padding: 15px;
+        background-color: #2b1111;
+        border-left: 6px solid #ff4b4b;
+        border-radius: 4px;
+        margin-bottom: 10px;
+    }
+    .safe-card {
+        padding: 15px;
+        background-color: #112b1a;
+        border-left: 6px solid #00c853;
+        border-radius: 4px;
+        margin-bottom: 10px;
+    }
+    .glitch-text {
+        color: #ff4b4b;
+        font-weight: bold;
+        text-shadow: 0 0 5px #ff4b4b;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-if 'user_database' not in st.session_state:
-    # We set Levi's baseline. For the demo, make sure to type around this speed!
-    st.session_state.user_database = {
-        "Levi (Owner)": {"base_lat": -1.286, "base_lon": 36.817, "base_wpm": 60}
+
+# --- 2. THE MULTIPLAYER GLOBAL DATABASE ---
+# This trick allows different devices (your laptop vs friend's phone) to share data!
+@st.cache_resource
+def get_global_database():
+    return {
+        "transactions": [],
+        "owner_baseline": {"lat": None, "lon": None, "wpm": None, "is_setup": False}
     }
 
-# Variables for the live typing test
-if 'start_time' not in st.session_state:
-    st.session_state.start_time = None
-if 'wpm_result' not in st.session_state:
-    st.session_state.wpm_result = None
+
+db = get_global_database()
+
+# Session variables for the live typing test
+if 'start_time' not in st.session_state: st.session_state.start_time = None
+if 'wpm_result' not in st.session_state: st.session_state.wpm_result = None
 
 
 # --- 3. CORE AI ENGINE ---
-def evaluate_transaction(user_id, current_lat, current_lon, current_wpm, req_type):
-    profile = st.session_state.user_database.get(user_id)
+def evaluate_transaction(current_lat, current_lon, current_wpm, req_type):
+    baseline = db["owner_baseline"]
     risk_score = 0
     reasons = []
 
-    # 1. LIVE Impossible Travel (Comparing GPS to Baseline)
-    if current_lat is not None and current_lon is not None:
-        dist = geodesic((profile["base_lat"], profile["base_lon"]), (current_lat, current_lon)).kilometers
-        # If they are more than 50km from their baseline location instantly...
-        if dist > 50:
+    # 1. LIVE Impossible Travel
+    if current_lat is not None and current_lon is not None and baseline["lat"] is not None:
+        dist = geodesic((baseline["lat"], baseline["lon"]), (current_lat, current_lon)).kilometers
+        if dist > 20:  # Trigger alert if more than 20km away
             risk_score += 50
-            reasons.append(f"🌍 LIVE GPS ANOMALY: Device located {dist:.0f}km from established baseline.")
+            reasons.append(f"🌍 GPS ANOMALY: Device located {dist:.0f}km from established baseline.")
     else:
         risk_score += 20
-        reasons.append("🌍 LOCATION MASKED: User denied GPS access.")
+        reasons.append("🌍 LOCATION MASKED: GPS data unavailable.")
 
     # 2. Rule-Based System
     if req_type == "SIM_REPLACEMENT":
         risk_score += 20
         reasons.append("⚠️ RULE VIOLATION: High-risk 'SIM Swap' requested.")
 
-    # 3. LIVE Behavioral Biometrics
-    if current_wpm:
-        wpm_diff = abs(current_wpm - profile["base_wpm"])
-        if wpm_diff > 20:  # Tight threshold for the demo
+    # 3. LIVE Behavioral Biometrics (With Anti-Cheat)
+    if current_wpm > 500:  # Catch copy-paste cheats
+        risk_score += 40
+        reasons.append("⌨️ FRAUD DETECTED: Copy-paste speed anomaly. Impossible human typing rate.")
+    elif current_wpm and baseline["wpm"]:
+        wpm_diff = abs(current_wpm - baseline["wpm"])
+        if wpm_diff > 25:
             risk_score += 30
             reasons.append(
-                f"⌨️ BIOMETRIC MISMATCH: Live typing speed ({current_wpm:.0f} WPM) deviates from baseline ({profile['base_wpm']} WPM).")
+                f"⌨️ BIOMETRIC MISMATCH: Speed ({current_wpm:.0f} WPM) deviates from baseline ({baseline['wpm']:.0f} WPM).")
 
     return min(risk_score, 100), reasons
 
 
 # --- 4. NAVIGATION ---
-st.sidebar.title("System Interfaces")
-view = st.sidebar.radio("Select View:", ["📱 Live Mobile App (User View)", "📡 Security Command Center"])
+st.sidebar.image(
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Globe_icon_2.svg/500px-Globe_icon_2.svg.png", width=50)
+st.sidebar.title("Network Access")
+view = st.sidebar.radio("Select Interface:", [
+    "⚙️ Step 1: Owner Profile Setup",
+    "📱 Step 2: Live Mobile App (User/Hacker)",
+    "📡 Step 3: Security Command Center"
+])
+
+if st.sidebar.button("🗑️ Reset Global System"):
+    db["transactions"].clear()
+    db["owner_baseline"] = {"lat": None, "lon": None, "wpm": None, "is_setup": False}
+    st.sidebar.success("System wiped. Ready for new demo.")
 
 # =====================================================================
-# INTERFACE 1: LIVE MOBILE APP (Where you capture real hardware data)
+# INTERFACE 1: PROFILE SETUP (Establish your true baseline)
 # =====================================================================
-if view == "📱 Live Mobile App (User View)":
-    _, col2, _ = st.columns([1, 2, 1])
+if view == "⚙️ Step 1: Owner Profile Setup":
+    st.title("⚙️ Establish Owner Baseline")
+    st.write("Before the demo begins, register the legitimate owner's real-time hardware data.")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("1. Lock GPS Location")
+        location = streamlit_geolocation()
+        if location and location['latitude']:
+            db["owner_baseline"]["lat"] = location['latitude']
+            db["owner_baseline"]["lon"] = location['longitude']
+            st.success("✅ Real-world coordinates locked.")
 
     with col2:
-        st.markdown("<h2 style='text-align: center;'>Telecom Mobile Portal</h2>", unsafe_allow_html=True)
-        st.divider()
+        st.subheader("2. Lock Typing Biometrics")
+        target_phrase = "Establish my baseline."
+        st.info(f"Type: **{target_phrase}**")
 
-        st.subheader("Step 1: Location Verification")
-        st.write("Please allow location access to verify your device.")
-        # LIVE GPS CAPTURE WIDGET
-        location = streamlit_geolocation()
-
-        if location and location['latitude'] is not None:
-            st.success(f"GPS Locked: Lat {location['latitude']}, Lon {location['longitude']}")
-
-        st.divider()
-
-        st.subheader("Step 2: Identity Verification (Biometrics)")
-        st.write("To verify your identity, please type the following phrase exactly as it appears:")
-
-        target_phrase = "Security is not a product but a continuous process."
-        st.info(f"**Phrase:** {target_phrase}")
-
-        # Start the invisible stopwatch
-        if st.session_state.start_time is None:
-            st.session_state.start_time = time.time()
+        if st.session_state.start_time is None: st.session_state.start_time = time.time()
 
         user_input = st.text_input("Type here:")
 
         if user_input == target_phrase:
-            end_time = time.time()
-            time_taken_minutes = (end_time - st.session_state.start_time) / 60
-            word_count = len(target_phrase.split())
-            st.session_state.wpm_result = word_count / time_taken_minutes
-            st.success(f"Biometric profile captured at {st.session_state.wpm_result:.0f} WPM.")
-        elif user_input != "":
-            st.warning("Please type the phrase exactly to proceed.")
+            time_taken = max(0.1, time.time() - st.session_state.start_time)
+            wpm = (len(target_phrase.split()) / (time_taken / 60))
+            db["owner_baseline"]["wpm"] = wpm
+            st.session_state.start_time = None  # reset
+            st.success(f"✅ Biometric speed locked at {wpm:.0f} WPM.")
 
+    st.divider()
+    if db["owner_baseline"]["lat"] and db["owner_baseline"]["wpm"]:
+        db["owner_baseline"]["is_setup"] = True
+        st.markdown("### 🟢 Baseline Established. The system is armed.")
+        st.json(db["owner_baseline"])
+    else:
+        st.warning("Please complete both GPS and Typing setup to arm the system.")
+
+# =====================================================================
+# INTERFACE 2: LIVE MOBILE APP (The Transaction Space)
+# =====================================================================
+elif view == "📱 Step 2: Live Mobile App (User/Hacker)":
+    if not db["owner_baseline"]["is_setup"]:
+        st.error("⚠️ Stop! Go to 'Owner Profile Setup' to arm the system first.")
+        st.stop()
+
+    _, col2, _ = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<h2 style='text-align: center; color: #4CAF50;'>Telecom Self-Service</h2>", unsafe_allow_html=True)
         st.divider()
 
-        st.subheader("Step 3: Submit Request")
+        st.write("🌍 **Location Verification**")
+        location = streamlit_geolocation()
+
+        st.write("⌨️ **Identity Verification**")
+        target_phrase = "Authorize network access."
+        st.info(f"Type: **{target_phrase}**")
+
+        if st.session_state.start_time is None: st.session_state.start_time = time.time()
+        user_input = st.text_input("Type here to verify:")
+
+        if user_input == target_phrase:
+            time_taken = max(0.1, time.time() - st.session_state.start_time)
+            st.session_state.wpm_result = (len(target_phrase.split()) / (time_taken / 60))
+            st.success("Hardware signature captured.")
+
         req_type = st.radio("Action Requested:", ["LOGIN", "SIM_REPLACEMENT"])
 
         if st.button("Transmit to Core Network", type="primary", use_container_width=True):
             if not st.session_state.wpm_result:
-                st.error("Please complete the typing test first.")
+                st.error("Please complete the typing verification.")
             else:
                 lat = location['latitude'] if location else None
                 lon = location['longitude'] if location else None
-                wpm = st.session_state.wpm_result
 
-                # Run the AI
-                score, reasons = evaluate_transaction("Levi (Owner)", lat, lon, wpm, req_type)
+                score, reasons = evaluate_transaction(lat, lon, st.session_state.wpm_result, req_type)
 
-                # Log it
                 transaction = {
                     "id": str(uuid.uuid4())[:8],
                     "timestamp": datetime.now().strftime("%H:%M:%S"),
-                    "user": "Levi (Owner)",
                     "type": req_type,
                     "score": score,
                     "reasons": reasons
                 }
-                st.session_state.live_transactions.insert(0, transaction)
+                db["transactions"].insert(0, transaction)
 
-                # Reset stopwatch for next time
+                # Reset stopwatch
                 st.session_state.start_time = None
                 st.session_state.wpm_result = None
 
                 if score >= 70:
-                    st.error("🚨 ACCESS DENIED: Security anomalies detected. Dashboard updated.")
+                    st.markdown("<h3 class='glitch-text'>🚨 ACCESS DENIED: Anomalies Detected</h3>",
+                                unsafe_allow_html=True)
                 else:
-                    st.success("✅ APPROVED: Identity verified. Dashboard updated.")
+                    st.success("✅ APPROVED: Identity verified.")
 
 # =====================================================================
-# INTERFACE 2: SECURITY COMMAND CENTER
+# INTERFACE 3: SECURITY COMMAND CENTER
 # =====================================================================
-elif view == "📡 Security Command Center":
-    st.title("🛡️ SIM-SECURE AI: Command Center")
-    st.markdown("Live monitoring of all incoming identity verification requests.")
+elif view == "📡 Step 3: Security Command Center":
+    st.title("🛡️ Command Center Dashboard")
 
-    if len(st.session_state.live_transactions) == 0:
+    # Add a refresh button so you can instantly see your friend's hacks
+    st.button("🔄 Refresh Live Feed", type="primary")
+    st.divider()
+
+    if len(db["transactions"]) == 0:
         st.info("System Idle. Waiting for live telemetry.")
     else:
-        for t in st.session_state.live_transactions:
+        for t in db["transactions"]:
             if t["score"] >= 70:
-                with st.expander(f"🔴 CRITICAL ALERT | Risk: {t['score']}/100 | {t['timestamp']}", expanded=True):
-                    st.write(f"**Request ID:** `{t['id']}` | **Action:** `{t['type']}`")
-                    for r in t["reasons"]:
-                        st.error(r)
+                st.markdown(f"""
+                <div class="alert-card">
+                    <h4>🔴 CRITICAL ALERT | Risk: {t['score']}/100 | {t['timestamp']}</h4>
+                    <p><b>Request ID:</b> {t['id']} | <b>Action:</b> {t['type']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                for r in t["reasons"]:
+                    st.error(r)
+                st.write("---")
             else:
-                with st.expander(f"🟢 SECURE | Risk: {t['score']}/100 | {t['timestamp']}"):
-                    st.success("No anomalies detected. Baseline matched.")
+                st.markdown(f"""
+                <div class="safe-card">
+                    <h4>🟢 SECURE | Risk: {t['score']}/100 | {t['timestamp']}</h4>
+                    <p><b>Request ID:</b> {t['id']} | <b>Action:</b> {t['type']}</p>
+                    <p>No anomalies detected. Hardware signatures match baseline.</p>
+                </div>
+                """, unsafe_allow_html=True)
