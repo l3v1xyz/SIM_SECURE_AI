@@ -54,7 +54,7 @@ if 'start_time' not in st.session_state: st.session_state.start_time = None
 if 'wpm_result' not in st.session_state: st.session_state.wpm_result = None
 
 
-# --- 3. AI ENGINE (Now Returns a Decision Matrix) ---
+# --- 3. AI ENGINE (Decision Matrix) ---
 def evaluate_transaction(current_lat, current_lon, current_wpm, req_type, current_hw_id):
     baseline = db["owner_baseline"]
     reasons = []
@@ -145,12 +145,18 @@ if view == "⚙️ Step 1: Owner Profile Setup":
                 st.rerun()
 
         if st.session_state.test_active:
-            if st.text_input("Type the phrase now:") == target_phrase:
-                time_taken = time.time() - st.session_state.start_time
-                wpm = (len(target_phrase.split()) / (time_taken / 60))
-                db["owner_baseline"]["wpm"] = wpm
-                st.session_state.test_active = False
-                st.rerun()
+            user_input = st.text_input("Type the phrase now:")
+
+            # --- MOBILE FRIENDLY SUBMIT BUTTON ---
+            if st.button("Submit Baseline Signature", type="primary"):
+                if user_input == target_phrase:
+                    time_taken = time.time() - st.session_state.start_time
+                    wpm = (len(target_phrase.split()) / (time_taken / 60))
+                    db["owner_baseline"]["wpm"] = wpm
+                    st.session_state.test_active = False
+                    st.rerun()
+                else:
+                    st.error("⚠️ Typo detected. Phrase must match exactly.")
 
         if db["owner_baseline"]["wpm"]:
             st.success(f"✅ Biometrics Locked: {db['owner_baseline']['wpm']:.0f} WPM")
@@ -184,8 +190,9 @@ elif view == "📱 Step 2: Live Mobile App":
         if location and location['latitude']:
             st.info(f"🌍 Location Captured: {location['latitude']:.4f}, {location['longitude']:.4f}")
 
+        st.markdown("#### ⌨️ Step 2: Identity Verification")
         target_phrase = "Authorize my network request."
-        st.info(f"⌨️ Phrase: **{target_phrase}**")
+        st.info(f"Phrase: **{target_phrase}**")
 
         if not st.session_state.test_active:
             if st.button("Start Verification"):
@@ -193,11 +200,17 @@ elif view == "📱 Step 2: Live Mobile App":
                 st.rerun()
 
         if st.session_state.test_active:
-            if st.text_input("Type phrase:") == target_phrase:
-                time_taken = time.time() - st.session_state.start_time
-                st.session_state.wpm_result = (len(target_phrase.split()) / (time_taken / 60))
-                st.session_state.test_active = False
-                st.rerun()
+            user_input = st.text_input("Type phrase:")
+
+            # --- MOBILE FRIENDLY SUBMIT BUTTON ---
+            if st.button("Verify Identity", type="primary"):
+                if user_input == target_phrase:
+                    time_taken = time.time() - st.session_state.start_time
+                    st.session_state.wpm_result = (len(target_phrase.split()) / (time_taken / 60))
+                    st.session_state.test_active = False
+                    st.rerun()
+                else:
+                    st.error("⚠️ Typo detected. Phrase must match exactly.")
 
         if st.session_state.wpm_result:
             st.success(f"Signature Captured ({st.session_state.wpm_result:.0f} WPM)")
@@ -225,7 +238,7 @@ elif view == "📱 Step 2: Live Mobile App":
                     st.success("✅ APPROVED: Request Processing.")
 
 # =====================================================================
-# INTERFACE 3: COMMAND CENTER (Includes Matrix & Threat Map)
+# INTERFACE 3: COMMAND CENTER
 # =====================================================================
 elif view == "📡 Step 3: Command Center":
     st.title("🛡️ Security Command Center")
