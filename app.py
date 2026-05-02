@@ -149,7 +149,7 @@ if view == "⚙️ Step 1: Owner Profile Setup":
 
             # --- MOBILE FRIENDLY SUBMIT BUTTON ---
             if st.button("Submit Baseline Signature", type="primary"):
-                if user_input == target_phrase:
+                if user_input.strip() == target_phrase:  # STRIP ADDED HERE!
                     time_taken = time.time() - st.session_state.start_time
                     wpm = (len(target_phrase.split()) / (time_taken / 60))
                     db["owner_baseline"]["wpm"] = wpm
@@ -204,7 +204,7 @@ elif view == "📱 Step 2: Live Mobile App":
 
             # --- MOBILE FRIENDLY SUBMIT BUTTON ---
             if st.button("Verify Identity", type="primary"):
-                if user_input == target_phrase:
+                if user_input.strip() == target_phrase:  # STRIP ADDED HERE!
                     time_taken = time.time() - st.session_state.start_time
                     st.session_state.wpm_result = (len(target_phrase.split()) / (time_taken / 60))
                     st.session_state.test_active = False
