@@ -43,7 +43,7 @@ def generate_hardware_id():
 # Generate a visual waveform based on typing speed
 def generate_waveform(wpm):
     x = np.linspace(0, 10, 100)
-    frequency = max(wpm / 40, 0.1)  # Faster WPM = tighter waves
+    frequency = max(wpm / 40, 0.1)  # Faster cadence = tighter waves
     y = np.sin(x * frequency) + np.random.normal(0, 0.15, 100)
     return pd.DataFrame({"Cadence Force": y}, index=x)
 
@@ -85,7 +85,7 @@ def evaluate_transaction(current_lat, current_lon, current_wpm, req_type, curren
         percent_diff = abs(current_wpm - baseline["wpm"]) / baseline["wpm"]
         if percent_diff > 0.30:
             behavioral_risk = 90
-            reasons.append(f"⌨️ BIOMETRIC MISMATCH: Speed deviates by {percent_diff * 100:.0f}%.")
+            reasons.append(f"⌨️ BIOMETRIC MISMATCH: Cadence deviates by {percent_diff * 100:.0f}%.")
 
     # 4. Hardware Fingerprint
     if current_hw_id != baseline["hw_id"]:
@@ -136,30 +136,34 @@ if view == "⚙️ Step 1: Owner Profile Setup":
 
     with col2:
         st.subheader("2. Biometric Anchor (Typing)")
-        target_phrase = "Security is a continuous process."
-        st.info(f"Phrase: **{target_phrase}**")
+        target_phrase = "ACC-211622"
+        st.info(f"Account Number: **{target_phrase}**")
 
         if not st.session_state.test_active:
-            if st.button("Start Typing Test"):
+            if st.button("Start Cadence Test", use_container_width=True):
                 st.session_state.test_active, st.session_state.start_time = True, time.time()
                 st.rerun()
 
         if st.session_state.test_active:
-            user_input = st.text_input("Type the phrase now:")
+            user_input = st.text_input("Type the account number exactly:", key="setup_input")
 
-            # --- MOBILE FRIENDLY SUBMIT BUTTON ---
-            if st.button("Submit Baseline Signature", type="primary"):
-                if user_input.strip() == target_phrase:  # STRIP ADDED HERE!
-                    time_taken = time.time() - st.session_state.start_time
-                    wpm = (len(target_phrase.split()) / (time_taken / 60))
-                    db["owner_baseline"]["wpm"] = wpm
+            if st.button("Submit Baseline Signature", type="primary", use_container_width=True):
+                # Clean input: ignore spaces and uppercase everything
+                clean_input = user_input.replace(" ", "").upper()
+                clean_target = target_phrase.replace(" ", "").upper()
+
+                if clean_input == clean_target:
+                    time_taken = max(time.time() - st.session_state.start_time, 0.1)
+                    # Calculate keystrokes per second, scaled for the engine
+                    kps = (len(clean_target) / time_taken) * 12
+                    db["owner_baseline"]["wpm"] = kps
                     st.session_state.test_active = False
                     st.rerun()
                 else:
-                    st.error("⚠️ Typo detected. Phrase must match exactly.")
+                    st.error("⚠️ Mismatch. Please check the account number.")
 
         if db["owner_baseline"]["wpm"]:
-            st.success(f"✅ Biometrics Locked: {db['owner_baseline']['wpm']:.0f} WPM")
+            st.success(f"✅ Biometrics Locked: Signature Captured")
             st.line_chart(generate_waveform(db["owner_baseline"]["wpm"]), height=150)
 
     st.divider()
@@ -180,7 +184,6 @@ elif view == "📱 Step 2: Live Mobile App":
         st.markdown("<h2 style='text-align: center; color: #3b82f6;'>Safaricom Digital Portal</h2>",
                     unsafe_allow_html=True)
 
-        # DEMO TOGGLE: Are you the owner or a hacker?
         is_hacker = st.toggle("🚨 DEMO: Simulate Attack from Unrecognized Device", value=False)
         current_hw_id = generate_hardware_id() if is_hacker else db["owner_baseline"]["hw_id"]
         st.caption(f"Current Device Hash: `{current_hw_id}`")
@@ -191,29 +194,31 @@ elif view == "📱 Step 2: Live Mobile App":
             st.info(f"🌍 Location Captured: {location['latitude']:.4f}, {location['longitude']:.4f}")
 
         st.markdown("#### ⌨️ Step 2: Identity Verification")
-        target_phrase = "Authorize my network request."
-        st.info(f"Phrase: **{target_phrase}**")
+        target_phrase = "ACC-211622"
+        st.info(f"Account Number: **{target_phrase}**")
 
         if not st.session_state.test_active:
-            if st.button("Start Verification"):
+            if st.button("Start Verification", use_container_width=True):
                 st.session_state.test_active, st.session_state.start_time = True, time.time()
                 st.rerun()
 
         if st.session_state.test_active:
-            user_input = st.text_input("Type phrase:")
+            user_input = st.text_input("Type account number:", key="live_input")
 
-            # --- MOBILE FRIENDLY SUBMIT BUTTON ---
-            if st.button("Verify Identity", type="primary"):
-                if user_input.strip() == target_phrase:  # STRIP ADDED HERE!
-                    time_taken = time.time() - st.session_state.start_time
-                    st.session_state.wpm_result = (len(target_phrase.split()) / (time_taken / 60))
+            if st.button("Verify Identity", type="primary", use_container_width=True):
+                clean_input = user_input.replace(" ", "").upper()
+                clean_target = target_phrase.replace(" ", "").upper()
+
+                if clean_input == clean_target:
+                    time_taken = max(time.time() - st.session_state.start_time, 0.1)
+                    st.session_state.wpm_result = (len(clean_target) / time_taken) * 12
                     st.session_state.test_active = False
                     st.rerun()
                 else:
-                    st.error("⚠️ Typo detected. Phrase must match exactly.")
+                    st.error("⚠️ Mismatch. Please check the account number.")
 
         if st.session_state.wpm_result:
-            st.success(f"Signature Captured ({st.session_state.wpm_result:.0f} WPM)")
+            st.success(f"Signature Captured")
             st.line_chart(generate_waveform(st.session_state.wpm_result), height=150)
 
         req_type = st.selectbox("Select Action:", ["LOGIN", "SIM_REPLACEMENT"])
@@ -232,7 +237,8 @@ elif view == "📱 Step 2: Live Mobile App":
                 })
                 st.session_state.wpm_result = None
 
-                if scores["total"] >= 70:
+                # Threshold set to 60 for strict security
+                if scores["total"] >= 60:
                     st.error("🚨 ACCESS DENIED: Anomalies Detected.")
                 else:
                     st.success("✅ APPROVED: Request Processing.")
@@ -242,14 +248,14 @@ elif view == "📱 Step 2: Live Mobile App":
 # =====================================================================
 elif view == "📡 Step 3: Command Center":
     st.title("🛡️ Security Command Center")
-    st.button("🔄 Refresh Live Feed", type="primary")
+    st.button("🔄 Refresh Live Feed", type="primary", use_container_width=True)
     st.divider()
 
     if len(db["transactions"]) == 0:
         st.info("System Idle. Awaiting incoming transactions.")
     else:
         for t in db["transactions"]:
-            is_breach = t["scores"]["total"] >= 70
+            is_breach = t["scores"]["total"] >= 60
             card_class = "alert-card" if is_breach else "safe-card"
             status = "🔴 BREACH ATTEMPT" if is_breach else "🟢 SECURE"
             color = "#ef4444" if is_breach else "#10b981"
