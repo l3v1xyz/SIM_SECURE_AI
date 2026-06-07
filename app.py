@@ -27,8 +27,8 @@ st.markdown("""
 
     /* Cards and Alerts */
     .metric-box {background-color: #1f2937; padding: 20px; border-radius: 10px; border: 1px solid #374151; box-shadow: 0 4px 6px rgba(0,0,0,0.3);}
-    .alert-card {padding: 20px; background: linear-gradient(145deg, #3f0f0f, #1a0505); border-left: 6px solid #ef4444; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);}
-    .safe-card {padding: 20px; background: linear-gradient(145deg, #064e3b, #022c22); border-left: 6px solid #10b981; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);}
+    .alert-card {padding: 20px; background: linear-gradient(145deg, #3f0f0f, #1a0505); border-left: 6px solid #ef4444; border-radius: 8px; margin-bottom: 15px;}
+    .safe-card {padding: 20px; background: linear-gradient(145deg, #064e3b, #022c22); border-left: 6px solid #10b981; border-radius: 8px; margin-bottom: 15px;}
 
     /* STK Push Simulation */
     .stk-overlay {background-color: rgba(0,0,0,0.9); padding: 35px; border-radius: 15px; border: 2px solid #ef4444; text-align: center; box-shadow: 0px 0px 40px rgba(239, 68, 68, 0.8); animation: pulse 1.5s infinite;}
@@ -45,7 +45,8 @@ st.markdown("""
 def get_global_database():
     return {
         "transactions": [],
-        "owner_baseline": {"lat": None, "lon": None, "wpm": None, "hw_id": None, "ip": None, "is_setup": False}
+        "owner_baseline": {"lat": None, "lon": None, "wpm": None, "hw_id": None, "iccid": None, "ip": None,
+                           "is_setup": False}
     }
 
 
@@ -56,9 +57,12 @@ def generate_hardware_id():
     return hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()[:12].upper()
 
 
+def generate_sim_iccid():
+    return f"8925402{random.randint(100000000000, 999999999999)}"
+
+
 def generate_ip(is_hacker=False):
-    if is_hacker:
-        return f"198.51.{random.randint(10, 99)}.{random.randint(100, 255)}"
+    if is_hacker: return f"198.51.{random.randint(10, 99)}.{random.randint(100, 255)}"
     return f"105.163.{random.randint(10, 99)}.{random.randint(10, 255)}"
 
 
@@ -74,6 +78,9 @@ if 'start_time' not in st.session_state: st.session_state.start_time = None
 if 'stk_active' not in st.session_state: st.session_state.stk_active = False
 if 'pending_req' not in st.session_state: st.session_state.pending_req = None
 
+# Set the Master Identity Code (Phone Number + National ID)
+TARGET_PHRASE = "0722000000-39876543"
+
 
 # --- 3. AI ENGINE (Decision Matrix) ---
 def evaluate_transaction(current_lat, current_lon, current_wpm, req_type, current_hw_id, current_ip):
@@ -81,7 +88,6 @@ def evaluate_transaction(current_lat, current_lon, current_wpm, req_type, curren
     reasons = []
     spatial_risk, behavioral_risk, rule_risk, hardware_risk = 0, 0, 0, 0
 
-    # 1. Spatial & Network
     if current_lat and current_lon and baseline["lat"]:
         dist = geodesic((baseline["lat"], baseline["lon"]), (current_lat, current_lon)).kilometers
         if dist > 20:
@@ -95,12 +101,10 @@ def evaluate_transaction(current_lat, current_lon, current_wpm, req_type, curren
         reasons.append(f"🌐 IP MISMATCH: Request from unknown network ({current_ip}).")
         spatial_risk = min(spatial_risk + 30, 100)
 
-    # 2. Rule
     if req_type == "SIM_REPLACEMENT":
         rule_risk = 80
         reasons.append("⚠️ HIGH-RISK ACTION: SIM Swap requested.")
 
-    # 3. Behavioral
     if current_wpm > 300:
         behavioral_risk = 100
         reasons.append("⌨️ NON-HUMAN TYPING: Copy-Paste / Bot behavior detected.")
@@ -110,7 +114,6 @@ def evaluate_transaction(current_lat, current_lon, current_wpm, req_type, curren
             behavioral_risk = 90
             reasons.append(f"⌨️ BIOMETRIC MISMATCH: Cadence deviates by {percent_diff * 100:.0f}%.")
 
-    # 4. Hardware Fingerprint
     if current_hw_id != baseline["hw_id"]:
         hardware_risk = 100
         reasons.append(f"📱 UNRECOGNIZED DEVICE: IMEI Hash {current_hw_id} rejected.")
@@ -124,32 +127,34 @@ def evaluate_transaction(current_lat, current_lon, current_wpm, req_type, curren
 # --- 4. NAVIGATION ---
 st.sidebar.markdown("## 🛡️ SIM-SECURE Core")
 view = st.sidebar.radio("Navigation:", ["⚙️ Step 1: Identity Provisioning", "📱 Step 2: Threat Simulation",
-                                        "📡 Step 3: Security Ops Center"])
+                                        "📡 Step 3: Security Ops Center", "📜 Step 4: Decentralized Audit Trail"])
 
 st.sidebar.divider()
 if st.sidebar.button("🗑️ System Master Reset", use_container_width=True):
     db["transactions"].clear()
-    db["owner_baseline"] = {"lat": None, "lon": None, "wpm": None, "hw_id": None, "ip": None, "is_setup": False}
+    db["owner_baseline"] = {"lat": None, "lon": None, "wpm": None, "hw_id": None, "iccid": None, "ip": None,
+                            "is_setup": False}
     st.session_state.stk_active = False
     st.sidebar.success("System Purged.")
 
 # =====================================================================
-# INTERFACE 1: PROFILE SETUP
+# INTERFACE 1: PROFILE SETUP (Embedded Identity)
 # =====================================================================
 if view == "⚙️ Step 1: Identity Provisioning":
-    st.title("⚙️ Secure Baseline Initialization")
-    st.markdown("Establish the legitimate user's physical, network, and biometric anchors.")
+    st.title("⚙️ Cryptographic Identity Binding")
+    st.markdown("Embed the legitimate user's identity directly into the SIM Secure Element.")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("<div class='metric-box'><h4>📱 Network & Spatial Anchors</h4>", unsafe_allow_html=True)
+        st.markdown("<div class='metric-box'><h4>📱 Hardware & Network Anchors</h4>", unsafe_allow_html=True)
         if not db["owner_baseline"]["hw_id"]:
             db["owner_baseline"]["hw_id"] = generate_hardware_id()
+            db["owner_baseline"]["iccid"] = generate_sim_iccid()
             db["owner_baseline"]["ip"] = generate_ip(is_hacker=False)
 
         st.info(
-            f"**IMEI Hash:** `{db['owner_baseline']['hw_id']}`\n\n**ISP Assigned IP:** `{db['owner_baseline']['ip']}`")
+            f"**Device IMEI:** `{db['owner_baseline']['hw_id']}`\n\n**SIM ICCID:** `{db['owner_baseline']['iccid']}`\n\n**Network IP:** `{db['owner_baseline']['ip']}`")
 
         st.write("**Capture Global Positioning:**")
         location = streamlit_geolocation()
@@ -159,45 +164,45 @@ if view == "⚙️ Step 1: Identity Provisioning":
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col2:
-        st.markdown("<div class='metric-box'><h4>⌨️ Behavioral Biometric Anchor</h4>", unsafe_allow_html=True)
-        target_phrase = "ACC211622"
-        st.write(f"Account Number: **{target_phrase}**")
+        st.markdown("<div class='metric-box'><h4>⌨️ Biometric Identity Anchor</h4>", unsafe_allow_html=True)
+        st.write(
+            "To securely bind the user to this SIM card, establish a behavioral typing baseline using their primary identifiers.")
+        st.info(f"Identity String (Phone-ID): **{TARGET_PHRASE}**")
 
         if st.session_state.start_time is None:
             st.session_state.start_time = time.time()
 
-        user_input = st.text_input("Type the account number to lock signature:")
+        user_input = st.text_input("Type the Identity String to lock signature:")
 
-        if st.button("Lock Signature", type="primary", use_container_width=True) or user_input:
-            clean_input = user_input.upper().replace(" ", "").replace("-", "")
-            if clean_input == target_phrase:
+        if st.button("Cryptographically Bind Identity", type="primary", use_container_width=True) or user_input:
+            clean_input = user_input.replace(" ", "")
+            if clean_input == TARGET_PHRASE:
                 time_taken = max(time.time() - st.session_state.start_time, 0.1)
                 kps = (len(clean_input) / time_taken) * 12
                 db["owner_baseline"]["wpm"] = kps
                 st.session_state.start_time = None
-                st.toast("✅ Signature Locked Successfully!", icon="🔐")
+                st.toast("✅ Signature Bound to SIM Successfully!", icon="🔐")
             elif user_input:
-                st.error("⚠️ Typo detected. Check account number.")
+                st.error("⚠️ Typo detected. Check Phone and ID Number.")
 
         if db["owner_baseline"]["wpm"]:
-            st.success("✅ Neural Cadence Captured")
+            st.success("✅ Neural Cadence & SIM ICCID Cryptographically Linked")
             st.line_chart(generate_waveform(db["owner_baseline"]["wpm"]), height=100)
         st.markdown("</div>", unsafe_allow_html=True)
 
     if db["owner_baseline"]["lat"] and db["owner_baseline"]["wpm"]:
         db["owner_baseline"]["is_setup"] = True
         st.divider()
-        st.success("### 🟢 AI Sentinel Armed & Ready. Proceed to Step 2.")
+        st.success("### 🟢 AI Sentinel Armed. Identity Provisioning Complete.")
 
 # =====================================================================
 # INTERFACE 2: LIVE MOBILE APP & STK SIMULATION
 # =====================================================================
 elif view == "📱 Step 2: Threat Simulation":
     if not db["owner_baseline"]["is_setup"]:
-        st.error("⚠️ System Offline. Complete Step 1 Initialization first.")
+        st.error("⚠️ System Offline. Complete Step 1 Identity Provisioning first.")
         st.stop()
 
-    # --- STK PUSH MODAL (Renders on top if active) ---
     if st.session_state.stk_active:
         st.markdown(f"""
             <div class="stk-overlay">
@@ -220,19 +225,16 @@ elif view == "📱 Step 2: Threat Simulation":
             st.error("Threat Neutralized. Network Access Revoked.")
             st.toast("Fraud Attempt Blocked!", icon="🛡️")
             st.rerun()
-        st.stop()  # Halts the rest of the UI rendering
+        st.stop()
 
-    # --- NORMAL APP VIEW ---
     _, col2, _ = st.columns([1, 2, 1])
     with col2:
-        # Developer / Hacker Control Panel
         with st.expander("🛠️ Developer Demo Controls (Simulate Hacker)"):
             is_hacker = st.toggle("🚨 Spoof Device and Network Connection", value=False)
             current_hw_id = generate_hardware_id() if is_hacker else db["owner_baseline"]["hw_id"]
             current_ip = generate_ip(is_hacker)
             st.caption(f"Broadcasting IMEI Hash: `{current_hw_id}` | IP: `{current_ip}`")
 
-        # Telecom Portal UI
         st.markdown("""
             <div class="telecom-header">
                 <h2 style='color: #ffffff; margin: 0;'>Safaricom Digital Identity</h2>
@@ -242,7 +244,6 @@ elif view == "📱 Step 2: Threat Simulation":
 
         st.markdown("<div class='telecom-body'>", unsafe_allow_html=True)
 
-        # RESTORED: Prominent Location Capture right in the UI
         st.markdown("#### 🌍 Spatial Verification")
         st.caption("Capturing live device coordinates...")
         location = streamlit_geolocation()
@@ -253,25 +254,20 @@ elif view == "📱 Step 2: Threat Simulation":
 
         st.markdown("---")
 
-        # Realistic Form Fields
         req_type = st.radio("Select Portal Action:", ["LOGIN", "SIM_REPLACEMENT"], horizontal=True)
-        st.text_input("Registered Phone Number:", value="+254 ")
-        st.text_input("National ID Number:")
 
-        st.markdown("---")
         st.markdown("#### 🔒 Identity Verification")
-        target_phrase = "ACC211622"
-        st.info(f"Verify Authorization Code: **{target_phrase}**")
+        st.info(f"Please enter your Phone and ID Number: **{TARGET_PHRASE}**")
 
         if st.session_state.start_time is None:
             st.session_state.start_time = time.time()
 
-        user_input = st.text_input("Enter code below to proceed (Biometrics Active):")
+        user_input = st.text_input("Type string below (Biometrics Active):")
 
         if st.button("Authenticate & Transmit Request", type="primary", use_container_width=True):
-            clean_input = user_input.upper().replace(" ", "").replace("-", "")
+            clean_input = user_input.replace(" ", "")
 
-            if clean_input == target_phrase:
+            if clean_input == TARGET_PHRASE:
                 time_taken = max(time.time() - st.session_state.start_time, 0.1)
                 wpm_result = (len(clean_input) / time_taken) * 12
                 lat, lon = (location['latitude'], location['longitude']) if location and location.get('latitude') else (
@@ -279,9 +275,10 @@ elif view == "📱 Step 2: Threat Simulation":
 
                 scores, reasons = evaluate_transaction(lat, lon, wpm_result, req_type, current_hw_id, current_ip)
 
+                # Log transaction
                 db["transactions"].insert(0, {
                     "id": str(uuid.uuid4())[:8], "timestamp": datetime.now().strftime("%H:%M:%S"),
-                    "type": req_type, "lat": lat, "lon": lon,
+                    "type": req_type, "lat": lat, "lon": lon, "ip": current_ip,
                     "scores": scores, "reasons": reasons
                 })
 
@@ -290,12 +287,12 @@ elif view == "📱 Step 2: Threat Simulation":
                 if scores["total"] >= 60:
                     st.session_state.pending_req = req_type
                     st.session_state.stk_active = True
-                    st.rerun()  # Instantly snap to STK screen
+                    st.rerun()
                 else:
                     st.success("✅ BIOMETRICS MATCH: Request Sent to Core Network.")
                     st.toast("Transaction Approved", icon="✅")
             else:
-                st.error("⚠️ Invalid Authorization Code.")
+                st.error("⚠️ Invalid Phone/ID combination.")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -346,7 +343,48 @@ elif view == "📡 Step 3: Security Ops Center":
 
                 st.write("**Engine Heuristics Logs:**")
                 for r in t["reasons"]: st.markdown(f"- {r}")
-
-                with st.expander("👁️ View Raw JSON Telemetry"):
-                    st.json(t)
             st.write("---")
+
+# =====================================================================
+# INTERFACE 4: LIVE AUDIT TRAIL
+# =====================================================================
+elif view == "📜 Step 4: Decentralized Audit Trail":
+    st.title("📜 Live Immutable Audit Ledger")
+    st.markdown(
+        "This ledger tracks all real-time decisions made by the AI engine, providing complete transparency into the system's operational history.")
+
+    if len(db["transactions"]) == 0:
+        st.info("No network requests have been logged yet. Run a simulation in Step 2.")
+    else:
+        # Reformat the raw JSON data into a clean Pandas DataFrame for enterprise viewing
+        audit_data = []
+        for t in db["transactions"]:
+            audit_data.append({
+                "Trace ID": t["id"],
+                "Timestamp": t["timestamp"],
+                "Request Vector": t["type"],
+                "Origin IP": t["ip"],
+                "Total Risk Score": t["scores"]["total"],
+                "Action Taken": "BLOCKED (STK PUSH)" if t["scores"]["total"] >= 60 else "APPROVED"
+            })
+
+        df = pd.DataFrame(audit_data)
+
+
+        # Style the dataframe to highlight fraudulent blocks in red
+        def highlight_blocks(s):
+            return ['background-color: rgba(239, 68, 68, 0.3)' if v == "BLOCKED (STK PUSH)" else '' for v in s]
+
+
+        styled_df = df.style.apply(highlight_blocks, subset=['Action Taken'])
+
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+        st.divider()
+        st.download_button(
+            label="📥 Export Ledger to CSV",
+            data=df.to_csv(index=False).encode('utf-8'),
+            file_name=f'sim_secure_audit_{datetime.now().strftime("%Y%m%d")}.csv',
+            mime='text/csv',
+            use_container_width=True
+        )
