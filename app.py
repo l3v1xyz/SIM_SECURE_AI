@@ -153,7 +153,7 @@ if view == "⚙️ Step 1: Identity Provisioning":
 
         st.write("**Capture Global Positioning:**")
         location = streamlit_geolocation()
-        if location and location['latitude']:
+        if location and location.get('latitude'):
             db["owner_baseline"]["lat"], db["owner_baseline"]["lon"] = location['latitude'], location['longitude']
             st.success(f"✅ GPS Locked: Lat {location['latitude']:.4f}, Lon {location['longitude']:.4f}")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -225,14 +225,12 @@ elif view == "📱 Step 2: Threat Simulation":
     # --- NORMAL APP VIEW ---
     _, col2, _ = st.columns([1, 2, 1])
     with col2:
-        # Developer / Hacker Control Panel (Hidden in expander to keep UI clean)
+        # Developer / Hacker Control Panel
         with st.expander("🛠️ Developer Demo Controls (Simulate Hacker)"):
             is_hacker = st.toggle("🚨 Spoof Device and Network Connection", value=False)
             current_hw_id = generate_hardware_id() if is_hacker else db["owner_baseline"]["hw_id"]
             current_ip = generate_ip(is_hacker)
             st.caption(f"Broadcasting IMEI Hash: `{current_hw_id}` | IP: `{current_ip}`")
-            st.caption("Capture Location:")
-            location = streamlit_geolocation()
 
         # Telecom Portal UI
         st.markdown("""
@@ -243,6 +241,17 @@ elif view == "📱 Step 2: Threat Simulation":
         """, unsafe_allow_html=True)
 
         st.markdown("<div class='telecom-body'>", unsafe_allow_html=True)
+
+        # RESTORED: Prominent Location Capture right in the UI
+        st.markdown("#### 🌍 Spatial Verification")
+        st.caption("Capturing live device coordinates...")
+        location = streamlit_geolocation()
+        if location and location.get('latitude'):
+            st.success(f"📍 Broadcasting from: Lat {location['latitude']:.4f}, Lon {location['longitude']:.4f}")
+        else:
+            st.warning("⚠️ Waiting for GPS signal... (Click the target icon)")
+
+        st.markdown("---")
 
         # Realistic Form Fields
         req_type = st.radio("Select Portal Action:", ["LOGIN", "SIM_REPLACEMENT"], horizontal=True)
@@ -265,7 +274,8 @@ elif view == "📱 Step 2: Threat Simulation":
             if clean_input == target_phrase:
                 time_taken = max(time.time() - st.session_state.start_time, 0.1)
                 wpm_result = (len(clean_input) / time_taken) * 12
-                lat, lon = (location['latitude'], location['longitude']) if location else (None, None)
+                lat, lon = (location['latitude'], location['longitude']) if location and location.get('latitude') else (
+                None, None)
 
                 scores, reasons = evaluate_transaction(lat, lon, wpm_result, req_type, current_hw_id, current_ip)
 
