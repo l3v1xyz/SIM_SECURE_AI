@@ -114,6 +114,7 @@ if st.sidebar.button("🗑️ Reset Live System", use_container_width=True):
     db["transactions"].clear()
     db["owner_baseline"] = {"lat": None, "lon": None, "wpm": None, "hw_id": None, "is_setup": False}
     st.sidebar.success("Memory wiped.")
+    st.toast("System Memory Wiped", icon="🗑️")
 
 # =====================================================================
 # INTERFACE 1: PROFILE SETUP
@@ -145,22 +146,26 @@ if view == "⚙️ Step 1: Owner Profile Setup":
                 st.rerun()
 
         if st.session_state.test_active:
-            user_input = st.text_input("Type the account number exactly:", key="setup_input")
+            # Wrapped in an st.form to capture "Enter" key presses securely
+            with st.form(key="setup_form"):
+                user_input = st.text_input("Type the account number exactly:")
+                submit_btn = st.form_submit_button("Submit Baseline Signature", type="primary",
+                                                   use_container_width=True)
 
-            if st.button("Submit Baseline Signature", type="primary", use_container_width=True):
-                # Clean input: ignore spaces and uppercase everything
-                clean_input = user_input.replace(" ", "").upper()
-                clean_target = target_phrase.replace(" ", "").upper()
+                if submit_btn:
+                    clean_input = user_input.replace(" ", "").upper()
+                    clean_target = target_phrase.replace(" ", "").upper()
 
-                if clean_input == clean_target:
-                    time_taken = max(time.time() - st.session_state.start_time, 0.1)
-                    # Calculate keystrokes per second, scaled for the engine
-                    kps = (len(clean_target) / time_taken) * 12
-                    db["owner_baseline"]["wpm"] = kps
-                    st.session_state.test_active = False
-                    st.rerun()
-                else:
-                    st.error("⚠️ Mismatch. Please check the account number.")
+                    if clean_input == clean_target:
+                        time_taken = max(time.time() - st.session_state.start_time, 0.1)
+                        kps = (len(clean_target) / time_taken) * 12
+                        db["owner_baseline"]["wpm"] = kps
+                        st.session_state.test_active = False
+                        st.toast("✅ Signature Locked Successfully!", icon="🔐")
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Mismatch. Please check the account number.")
+                        st.toast("Typo detected, try again.", icon="⚠️")
 
         if db["owner_baseline"]["wpm"]:
             st.success(f"✅ Biometrics Locked: Signature Captured")
@@ -203,19 +208,24 @@ elif view == "📱 Step 2: Live Mobile App":
                 st.rerun()
 
         if st.session_state.test_active:
-            user_input = st.text_input("Type account number:", key="live_input")
+            # Wrapped in an st.form to capture "Enter" key presses securely
+            with st.form(key="live_form"):
+                user_input = st.text_input("Type account number:")
+                submit_btn = st.form_submit_button("Verify Identity", type="primary", use_container_width=True)
 
-            if st.button("Verify Identity", type="primary", use_container_width=True):
-                clean_input = user_input.replace(" ", "").upper()
-                clean_target = target_phrase.replace(" ", "").upper()
+                if submit_btn:
+                    clean_input = user_input.replace(" ", "").upper()
+                    clean_target = target_phrase.replace(" ", "").upper()
 
-                if clean_input == clean_target:
-                    time_taken = max(time.time() - st.session_state.start_time, 0.1)
-                    st.session_state.wpm_result = (len(clean_target) / time_taken) * 12
-                    st.session_state.test_active = False
-                    st.rerun()
-                else:
-                    st.error("⚠️ Mismatch. Please check the account number.")
+                    if clean_input == clean_target:
+                        time_taken = max(time.time() - st.session_state.start_time, 0.1)
+                        st.session_state.wpm_result = (len(clean_target) / time_taken) * 12
+                        st.session_state.test_active = False
+                        st.toast("✅ Identity Verified!", icon="🟢")
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Mismatch. Please check the account number.")
+                        st.toast("Typo detected, try again.", icon="⚠️")
 
         if st.session_state.wpm_result:
             st.success(f"Signature Captured")
@@ -240,8 +250,10 @@ elif view == "📱 Step 2: Live Mobile App":
                 # Threshold set to 60 for strict security
                 if scores["total"] >= 60:
                     st.error("🚨 ACCESS DENIED: Anomalies Detected.")
+                    st.toast("Transaction Blocked!", icon="🔴")
                 else:
                     st.success("✅ APPROVED: Request Processing.")
+                    st.toast("Transaction Approved", icon="✅")
 
 # =====================================================================
 # INTERFACE 3: COMMAND CENTER
