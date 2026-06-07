@@ -21,15 +21,19 @@ st.markdown("""
     .stButton>button {background-color: #2563eb; color: white; border-radius: 8px; font-weight: 600; padding: 10px;}
     .stButton>button:hover {background-color: #1d4ed8; border-color: #1d4ed8;}
 
+    /* Telecom Portal UI */
+    .telecom-header {background: linear-gradient(90deg, #064e3b 0%, #047857 100%); padding: 25px; border-radius: 10px 10px 0 0; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border-bottom: 4px solid #34d399;}
+    .telecom-body {background-color: #1f2937; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #374151; border-top: none; box-shadow: 0 4px 6px rgba(0,0,0,0.3);}
+
     /* Cards and Alerts */
     .metric-box {background-color: #1f2937; padding: 20px; border-radius: 10px; border: 1px solid #374151; box-shadow: 0 4px 6px rgba(0,0,0,0.3);}
     .alert-card {padding: 20px; background: linear-gradient(145deg, #3f0f0f, #1a0505); border-left: 6px solid #ef4444; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);}
     .safe-card {padding: 20px; background: linear-gradient(145deg, #064e3b, #022c22); border-left: 6px solid #10b981; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);}
 
     /* STK Push Simulation */
-    .stk-overlay {background-color: rgba(0,0,0,0.8); padding: 30px; border-radius: 15px; border: 2px solid #ef4444; text-align: center; box-shadow: 0px 0px 30px rgba(239, 68, 68, 0.6); animation: pulse 2s infinite;}
-    .stk-header {color: #fca5a5; font-size: 22px; font-weight: 800; font-family: 'Courier New', monospace; letter-spacing: 1px;}
-    .stk-body {color: #ffffff; font-size: 16px; margin: 20px 0;}
+    .stk-overlay {background-color: rgba(0,0,0,0.9); padding: 35px; border-radius: 15px; border: 2px solid #ef4444; text-align: center; box-shadow: 0px 0px 40px rgba(239, 68, 68, 0.8); animation: pulse 1.5s infinite;}
+    .stk-header {color: #fca5a5; font-size: 24px; font-weight: 800; font-family: 'Courier New', monospace; letter-spacing: 1px;}
+    .stk-body {color: #ffffff; font-size: 18px; margin: 20px 0;}
 
     h1, h2, h3 { font-family: 'Courier New', Courier, monospace; }
     </style>
@@ -54,8 +58,8 @@ def generate_hardware_id():
 
 def generate_ip(is_hacker=False):
     if is_hacker:
-        return f"198.51.{random.randint(10, 99)}.{random.randint(100, 255)}"  # Suspicious VPN IP
-    return f"105.163.{random.randint(10, 99)}.{random.randint(10, 255)}"  # Standard Kenyan Telecom IP
+        return f"198.51.{random.randint(10, 99)}.{random.randint(100, 255)}"
+    return f"105.163.{random.randint(10, 99)}.{random.randint(10, 255)}"
 
 
 def generate_waveform(wpm):
@@ -96,8 +100,8 @@ def evaluate_transaction(current_lat, current_lon, current_wpm, req_type, curren
         rule_risk = 80
         reasons.append("⚠️ HIGH-RISK ACTION: SIM Swap requested.")
 
-    # 3. Behavioral (The Copy-Paste Trap)
-    if current_wpm > 300:  # Super fast = Copy Paste
+    # 3. Behavioral
+    if current_wpm > 300:
         behavioral_risk = 100
         reasons.append("⌨️ NON-HUMAN TYPING: Copy-Paste / Bot behavior detected.")
     elif current_wpm and baseline["wpm"]:
@@ -112,7 +116,6 @@ def evaluate_transaction(current_lat, current_lon, current_wpm, req_type, curren
         reasons.append(f"📱 UNRECOGNIZED DEVICE: IMEI Hash {current_hw_id} rejected.")
 
     total_risk = (spatial_risk * 0.3) + (behavioral_risk * 0.3) + (rule_risk * 0.2) + (hardware_risk * 0.2)
-
     scores = {"spatial": spatial_risk, "behavioral": behavioral_risk, "rule": rule_risk, "hardware": hardware_risk,
               "total": min(int(total_risk), 100)}
     return scores, reasons
@@ -160,7 +163,6 @@ if view == "⚙️ Step 1: Identity Provisioning":
         target_phrase = "ACC211622"
         st.write(f"Account Number: **{target_phrase}**")
 
-        # We start the timer the moment this text box renders
         if st.session_state.start_time is None:
             st.session_state.start_time = time.time()
 
@@ -169,12 +171,10 @@ if view == "⚙️ Step 1: Identity Provisioning":
         if st.button("Lock Signature", type="primary", use_container_width=True) or user_input:
             clean_input = user_input.upper().replace(" ", "").replace("-", "")
             if clean_input == target_phrase:
-                with st.spinner("Encrypting biometric signature..."):
-                    time.sleep(1)
                 time_taken = max(time.time() - st.session_state.start_time, 0.1)
                 kps = (len(clean_input) / time_taken) * 12
                 db["owner_baseline"]["wpm"] = kps
-                st.session_state.start_time = None  # Reset timer
+                st.session_state.start_time = None
                 st.toast("✅ Signature Locked Successfully!", icon="🔐")
             elif user_input:
                 st.error("⚠️ Typo detected. Check account number.")
@@ -197,63 +197,72 @@ elif view == "📱 Step 2: Threat Simulation":
         st.error("⚠️ System Offline. Complete Step 1 Initialization first.")
         st.stop()
 
-    # STK PUSH MODAL (Renders on top if active)
+    # --- STK PUSH MODAL (Renders on top if active) ---
     if st.session_state.stk_active:
         st.markdown(f"""
             <div class="stk-overlay">
-                <div class="stk-header">🚨 SAFARICOM STK PUSH 🚨</div>
+                <div class="stk-header">🚨 SAFARICOM SECURITY ALERT 🚨</div>
                 <div class="stk-body">
-                    <b>Critical Alert:</b> An anomalous <b>{st.session_state.pending_req}</b> request was detected on your account.<br><br>
-                    Did you authorize this request?
+                    <b>Action Required:</b> An anomalous <b>{st.session_state.pending_req}</b> request was detected on your account.<br><br>
+                    Did you authorize this network request?
                 </div>
             </div>
             <br>
         """, unsafe_allow_html=True)
 
         c1, c2 = st.columns(2)
-        if c1.button("✅ YES, I AUTHORIZE THIS", use_container_width=True):
+        if c1.button("✅ YES, I AUTHORIZE", use_container_width=True):
             st.session_state.stk_active = False
             st.success("Transaction Forced Approved by Owner.")
             st.rerun()
-        if c2.button("🛑 NO, BLOCK AND REPORT!", type="primary", use_container_width=True):
+        if c2.button("🛑 NO, BLOCK & REPORT", type="primary", use_container_width=True):
             st.session_state.stk_active = False
-            st.error("Threat Neutralized. Account Locked for Security.")
+            st.error("Threat Neutralized. Network Access Revoked.")
             st.toast("Fraud Attempt Blocked!", icon="🛡️")
             st.rerun()
-        st.stop()  # Stops rendering the rest of the app while STK is active
+        st.stop()  # Halts the rest of the UI rendering
 
-    # NORMAL APP VIEW
+    # --- NORMAL APP VIEW ---
     _, col2, _ = st.columns([1, 2, 1])
     with col2:
-        st.markdown("<h2 style='text-align: center; color: #3b82f6;'>Safaricom Digital Portal</h2>",
-                    unsafe_allow_html=True)
+        # Developer / Hacker Control Panel (Hidden in expander to keep UI clean)
+        with st.expander("🛠️ Developer Demo Controls (Simulate Hacker)"):
+            is_hacker = st.toggle("🚨 Spoof Device and Network Connection", value=False)
+            current_hw_id = generate_hardware_id() if is_hacker else db["owner_baseline"]["hw_id"]
+            current_ip = generate_ip(is_hacker)
+            st.caption(f"Broadcasting IMEI Hash: `{current_hw_id}` | IP: `{current_ip}`")
+            st.caption("Capture Location:")
+            location = streamlit_geolocation()
 
-        # DEMO CONTROL
+        # Telecom Portal UI
+        st.markdown("""
+            <div class="telecom-header">
+                <h2 style='color: #ffffff; margin: 0;'>Safaricom Digital Identity</h2>
+                <p style='color: #a7f3d0; margin: 0;'>Secure Customer Self-Service Portal</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("<div class='telecom-body'>", unsafe_allow_html=True)
+
+        # Realistic Form Fields
+        req_type = st.radio("Select Portal Action:", ["LOGIN", "SIM_REPLACEMENT"], horizontal=True)
+        st.text_input("Registered Phone Number:", value="+254 ")
+        st.text_input("National ID Number:")
+
         st.markdown("---")
-        is_hacker = st.toggle("🚨 DEMO CONTROL: Simulate Attack from Unrecognized Device", value=False)
-        current_hw_id = generate_hardware_id() if is_hacker else db["owner_baseline"]["hw_id"]
-        current_ip = generate_ip(is_hacker)
-        st.caption(f"Broadcasting IMEI Hash: `{current_hw_id}` | IP: `{current_ip}`")
-
-        location = streamlit_geolocation()
-
-        st.markdown("#### Identity Verification")
+        st.markdown("#### 🔒 Identity Verification")
         target_phrase = "ACC211622"
-        st.info(f"Account Number: **{target_phrase}**")
+        st.info(f"Verify Authorization Code: **{target_phrase}**")
 
         if st.session_state.start_time is None:
             st.session_state.start_time = time.time()
 
-        user_input = st.text_input("Type account number (Try Copy-Pasting to trigger Hacker Trap!):")
-        req_type = st.selectbox("Select Action:", ["LOGIN", "SIM_REPLACEMENT"])
+        user_input = st.text_input("Enter code below to proceed (Biometrics Active):")
 
-        if st.button("Transmit to Core Network", type="primary", use_container_width=True):
+        if st.button("Authenticate & Transmit Request", type="primary", use_container_width=True):
             clean_input = user_input.upper().replace(" ", "").replace("-", "")
 
             if clean_input == target_phrase:
-                with st.spinner("Analyzing IPRS Identity and Biometric Cadence..."):
-                    time.sleep(1.5)  # Simulate Network Latency
-
                 time_taken = max(time.time() - st.session_state.start_time, 0.1)
                 wpm_result = (len(clean_input) / time_taken) * 12
                 lat, lon = (location['latitude'], location['longitude']) if location else (None, None)
@@ -266,17 +275,19 @@ elif view == "📱 Step 2: Threat Simulation":
                     "scores": scores, "reasons": reasons
                 })
 
-                st.session_state.start_time = None  # Reset
+                st.session_state.start_time = None
 
                 if scores["total"] >= 60:
                     st.session_state.pending_req = req_type
                     st.session_state.stk_active = True
-                    st.rerun()
+                    st.rerun()  # Instantly snap to STK screen
                 else:
-                    st.success("✅ APPROVED: Request Processing.")
+                    st.success("✅ BIOMETRICS MATCH: Request Sent to Core Network.")
                     st.toast("Transaction Approved", icon="✅")
             else:
-                st.error("⚠️ Invalid Account Number.")
+                st.error("⚠️ Invalid Authorization Code.")
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # =====================================================================
 # INTERFACE 3: SECURITY OPS CENTER (SOC)
@@ -290,7 +301,7 @@ elif view == "📡 Step 3: Security Ops Center":
     col_c.metric("Active AI Modules", "4 (Spatial, Net, Bio, Rules)")
 
     st.divider()
-    st.button("🔄 Refresh Live Feed", type="primary", use_container_width=True)
+    st.button("🔄 Refresh Live Telemetry", type="primary", use_container_width=True)
 
     if len(db["transactions"]) == 0:
         st.info("System Idle. Awaiting incoming network telemetry.")
